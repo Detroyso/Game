@@ -1,42 +1,48 @@
-name: CI
+name: Android Build
+
+# Определяем, когда запускать процесс
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main  # Запускать при пуше в ветку main
+  pull_request:
+    branches:
+      - main  # Запускать на pull request в ветку main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Запускаем на последней версии Ubuntu
 
     steps:
-      - uses: actions/checkout@v2
+      # Шаг 1: Клонируем репозиторий
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      # used to cache dependencies with a timeout
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
-        shell: bash
+      # Шаг 2: Устанавливаем Java Development Kit (JDK)
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'  # Используем дистрибутив Zulu OpenJDK
+          java-version: '11'
 
-      - name: Cache Buildozer global directory
+      # Шаг 3: Кэшируем зависимости Gradle для ускорения сборки
+      - name: Cache Gradle files
         uses: actions/cache@v3
         with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }} # Replace with your path
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle
 
-      - uses: actions/cache@v3
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
+      # Шаг 4: Запускаем сборку проекта через Gradle
+      - name: Build with Gradle
+        run: ./gradlew build
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
-
-      - name: Upload artifacts
+      # Шаг 5: Загружаем собранные APK как артефакты
+      - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: app-release.apk
+          path: app/build/outputs/apk/release/app-release.apk
